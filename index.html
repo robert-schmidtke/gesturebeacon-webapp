@@ -1,27 +1,63 @@
 <!DOCTYPE html>
 
 <html>
+
   <head>
+    <title>GestureBeacon WebApp</title>
+
     <script src="assets/private/scripts/configuration.js"></script>
     <script src="assets/public/scripts/relayr.js"></script>
+    <script src="assets/public/scripts/d3.js" charset="utf-8"></script>
   </head>
 
   <body>
-    TBD
+    <!-- append svg here -->
   </body>
+
 </html>
 
 <script>
 
+  // our canvas
+  var svgContainer = d3.select("body").append("svg")
+    .attr("width", 800)
+    .attr("height", 600);
+
+  var lineData = [];
+
+  var lineFunction = d3.svg.line()
+    .x(function(d) { return d.x; })
+    .y(function(d) { return d.y; })
+    .interpolate("basis");
+
+  var linePath = svgContainer.append("path");
+  var lineGraph = linePath
+    .attr("d", lineFunction(lineData))
+    .attr("stroke", "blue")
+    .attr("stroke-width", 2)
+    .attr("fill", "none");
+
   var relayr = RELAYR.init({
-    appId: APP_ID
+    appId : APP_ID
   });
 
+  var i = 1;
+
   relayr.devices().getDeviceData({
-    token: "YOUR TOKEN",
-    deviceId:"YOUR DEVICE_ID",
-    incomingData: function(data){
-      console.log("data from device", data)
+    token : TOKEN,
+    deviceId : PROXIMITY_1_DEVICE_ID,
+    incomingData : function(data){
+      console.log("data from proximity sensor 1", data);
+
+      lineData.push({ "x" : i, "y" : data.prox });
+      linePath.attr("d", lineFunction(lineData));
+      i += 5;
+    }
+  }).getDeviceData({
+    token : TOKEN,
+    deviceId : PROXIMITY_1_DEVICE_ID,
+    incomingData : function(data){
+      // console.log("data from proximity sensor 2", data);
     }
   });
 
