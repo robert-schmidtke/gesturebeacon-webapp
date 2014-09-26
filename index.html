@@ -9,25 +9,28 @@
     <script src="assets/public/scripts/relayr.js"></script>
     <script src="assets/public/scripts/d3.js" charset="utf-8"></script>
     <script src="assets/public/scripts/jquery-1.11.1.js"></script>
+    <script src="assets/public/scripts/jshue.js"></script>
   </head>
 
   <meta charset="utf-8">
   <style>
 
-  body { font: 12px Arial;}
+  body {
+    font : 12px Arial;
+  }
 
   path { 
-      stroke: steelblue;
-      stroke-width: 2;
-      fill: none;
+    stroke       : steelblue;
+    stroke-width : 2;
+    fill         : none;
   }
 
   .axis path,
   .axis line {
-      fill: none;
-      stroke: grey;
-      stroke-width: 1;
-      shape-rendering: crispEdges;
+    fill            : none;
+    stroke          : grey;
+    stroke-width    : 1;
+    shape-rendering : crispEdges;
   }
 
   </style>
@@ -40,98 +43,130 @@
 
 <script>
 
-  var margin = {top: 30, right: 20, bottom: 30, left: 50},
-      width = 800 - margin.left - margin.right,
-      height = 600 - margin.top - margin.bottom;
+  // setup the Hue
+  var hue = jsHue();
+  var user = hue.bridge("10.1.76.207").user("gesturebeacon");
+  user.create("webapp", function() {
+    console.log("Successfully created Hue user");
+  }, function(error) {
+    console.log("Error creating Hue user");
+  });
 
+  user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":3500 },
+  function() {
+    console.log("Successfully set light");
+  }, function(error) {
+    console.log("Error setting light");
+  });
+
+  // graph dimensions
+  var margin = {
+    top    : 30,
+    right  : 20,
+    bottom : 30,
+    left   : 50
+  };
+  var width  = 800 - margin.left - margin.right;
+  var height = 600 - margin.top - margin.bottom;
+
+  // x and y scales
   var x = d3.time.scale().range([0, width]);
   var y = d3.scale.linear().range([height, 0]);
 
+  // x and y axes
   var xAxis = d3.svg.axis().scale(x)
-      .orient("bottom").ticks(d3.time.second, 5).tickFormat(d3.time.format("%H:%M:%S"));
-
+    .orient("bottom")
+    .ticks(d3.time.second, 5).tickFormat(d3.time.format("%H:%M:%S"));
   var yAxis = d3.svg.axis().scale(y)
-      .orient("left").ticks(5);
+    .orient("left")
+    .ticks(5);
 
-  var lineData = [];
+  // holds the stats for left and right proximity sensors
+  var proxData = {
+    left  : [],
+    right : []
+  };
 
-  var lineFunction = d3.svg.line()
+  // function for x/y value pairs
+  var proxFunction = d3.svg.line()
     .x(function(d) { return x(d.ts); })
     .y(function(d) { return y(d.prox); })
     .interpolate("cardinal");
-      
+
+  // attach the drawing canvas
   var svg = d3.select("body")
-      .append("svg")
-          .attr("width", width + margin.left + margin.right)
-          .attr("height", height + margin.top + margin.bottom)
-      .append("g")
-          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+    .append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+      .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-  var linePath = svg.append("path");
-  linePath.attr("class", "line");
+  // the actual graphs for left and right proximity sensors
+  var path = {
+    left  : svg.append("path").attr("class", "line"),
+    right : svg.append("path").attr("class", "line")
+  };
 
+  // initialize relayr
   var relayr = RELAYR.init({
     appId : APP_ID
   });
 
+  // subscribe to left and right proximity sensors
   relayr.devices().getDeviceData({
-    token : TOKEN,
-    deviceId : PROXIMITY_1_DEVICE_ID,
+    token        : TOKEN,
+    deviceId     : PROXIMITY_LEFT_DEVICE_ID,
     incomingData : function(data){
+      // var timestamp = new Date(data.ts);
+      // console.log("data from proximity sensor 1 at %s", timestamp.toJSON(), data);
 
-      var timestamp = new Date(data.ts);
-
-      console.log("data from proximity sensor 1 at %s", timestamp.toJSON(), data);
-
-      if(lineData.length >= 20) {
-        lineData.shift();
+      // display the latest 20 data points
+      if(proxData.left.length >= 20) {
+        proxData.left.shift();
       }
+      proxData.left.push({ "ts" : new Date(data.ts), "prox" : data.prox });
 
-      lineData.push({ "ts" : new Date(data.ts), "prox" : data.prox });
+      // scale data over the entire canvas
+      x.domain(d3.extent(proxData.left, function(d) { return d.ts; }));
+      y.domain([ 0, d3.max(proxData.left, function(d) { return d.prox; }) ]);
 
-      x.domain(d3.extent(lineData, function(d) { return d.ts; }));
-      y.domain([0, d3.max(lineData, function(d) { return d.prox; })]);
-
+      // clear axes and their labels because their scales change with new data
       $("#x-axis").remove();
       $("#x-axis-text").remove();
       $("#y-axis").remove();
       $("#y-axis-text").remove();
 
-      linePath.attr("d", lineFunction(lineData));
+      // reset data on the graph
+      path.left.attr("d", proxFunction(proxData.left));
 
-      svg.append("g")         // Add the X Axis
-          .attr("class", "x axis")
-          .attr("transform", "translate(0," + height + ")")
-          .call(xAxis)
-          .attr("id", "x-axis");
-
-      // Add the text label for the x axis
+      // redraw axes and labels
+      svg.append("g")
+        .attr("id", "x-axis")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + height + ")")
+        .call(xAxis);
       svg.append("text")
-          .attr("transform", "translate(" + (width / 2) + " ," + (height + margin.bottom) + ")")
-          .style("text-anchor", "middle")
-          .text("Time")
-          .attr("id", "x-axis-text");
-
-      svg.append("g")         // Add the Y Axis
-          .attr("class", "y axis")
-          .call(yAxis)
-          .attr("id", "y-axis");
-
-      // Add the text label for the Y axis
+        .attr("id", "x-axis-text")
+        .attr("transform", "translate(" + (width / 2) + " ," + (height + margin.bottom) + ")")
+        .style("text-anchor", "middle")
+        .text("Time");
+      svg.append("g")
+        .attr("id", "y-axis")
+        .attr("class", "y axis")
+        .call(yAxis);
       svg.append("text")
-          .attr("transform", "rotate(-90)")
-          .attr("y", 0 - margin.left)
-          .attr("x",0 - (height / 2))
-          .attr("dy", "1em")
-          .style("text-anchor", "middle")
-          .text("Proximity")
-          .attr("id", "y-axis-text");
+        .attr("id", "y-axis-text")
+        .attr("transform", "rotate(-90)")
+        .attr("y", 0 - margin.left)
+        .attr("x", 0 - (height / 2))
+        .attr("dy", "1em")
+        .style("text-anchor", "middle")
+        .text("Proximity");
     }
   }).getDeviceData({
-    token : TOKEN,
-    deviceId : PROXIMITY_1_DEVICE_ID,
+    token        : TOKEN,
+    deviceId     : PROXIMITY_RIGHT_DEVICE_ID,
     incomingData : function(data){
-      // console.log("data from proximity sensor 2", data);
     }
   });
 
