@@ -8,7 +8,29 @@
     <script src="assets/private/scripts/configuration.js"></script>
     <script src="assets/public/scripts/relayr.js"></script>
     <script src="assets/public/scripts/d3.js" charset="utf-8"></script>
+    <script src="assets/public/scripts/jquery-1.11.1.js"></script>
   </head>
+
+  <meta charset="utf-8">
+  <style>
+
+  body { font: 12px Arial;}
+
+  path { 
+      stroke: steelblue;
+      stroke-width: 2;
+      fill: none;
+  }
+
+  .axis path,
+  .axis line {
+      fill: none;
+      stroke: grey;
+      stroke-width: 1;
+      shape-rendering: crispEdges;
+  }
+
+  </style>
 
   <body>
     <!-- append svg here -->
@@ -18,40 +40,92 @@
 
 <script>
 
-  // our canvas
-  var svgContainer = d3.select("body").append("svg")
-    .attr("width", 800)
-    .attr("height", 600);
+  var margin = {top: 30, right: 20, bottom: 30, left: 50},
+      width = 800 - margin.left - margin.right,
+      height = 600 - margin.top - margin.bottom;
+
+  var x = d3.time.scale().range([0, width]);
+  var y = d3.scale.linear().range([height, 0]);
+
+  var xAxis = d3.svg.axis().scale(x)
+      .orient("bottom").ticks(d3.time.second, 5).tickFormat(d3.time.format("%H:%M:%S"));
+
+  var yAxis = d3.svg.axis().scale(y)
+      .orient("left").ticks(5);
 
   var lineData = [];
 
   var lineFunction = d3.svg.line()
-    .x(function(d) { return d.x; })
-    .y(function(d) { return d.y; })
-    .interpolate("basis");
+    .x(function(d) { return x(d.ts); })
+    .y(function(d) { return y(d.prox); })
+    .interpolate("cardinal");
+      
+  var svg = d3.select("body")
+      .append("svg")
+          .attr("width", width + margin.left + margin.right)
+          .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-  var linePath = svgContainer.append("path");
-  var lineGraph = linePath
-    .attr("d", lineFunction(lineData))
-    .attr("stroke", "blue")
-    .attr("stroke-width", 2)
-    .attr("fill", "none");
+  var linePath = svg.append("path");
+  linePath.attr("class", "line");
 
   var relayr = RELAYR.init({
     appId : APP_ID
   });
 
-  var i = 1;
-
   relayr.devices().getDeviceData({
     token : TOKEN,
     deviceId : PROXIMITY_1_DEVICE_ID,
     incomingData : function(data){
-      console.log("data from proximity sensor 1", data);
 
-      lineData.push({ "x" : i, "y" : data.prox });
+      var timestamp = new Date(data.ts);
+
+      console.log("data from proximity sensor 1 at %s", timestamp.toJSON(), data);
+
+      if(lineData.length >= 20) {
+        lineData.shift();
+      }
+
+      lineData.push({ "ts" : new Date(data.ts), "prox" : data.prox });
+
+      x.domain(d3.extent(lineData, function(d) { return d.ts; }));
+      y.domain([0, d3.max(lineData, function(d) { return d.prox; })]);
+
+      $("#x-axis").remove();
+      $("#x-axis-text").remove();
+      $("#y-axis").remove();
+      $("#y-axis-text").remove();
+
       linePath.attr("d", lineFunction(lineData));
-      i += 5;
+
+      svg.append("g")         // Add the X Axis
+          .attr("class", "x axis")
+          .attr("transform", "translate(0," + height + ")")
+          .call(xAxis)
+          .attr("id", "x-axis");
+
+      // Add the text label for the x axis
+      svg.append("text")
+          .attr("transform", "translate(" + (width / 2) + " ," + (height + margin.bottom) + ")")
+          .style("text-anchor", "middle")
+          .text("Time")
+          .attr("id", "x-axis-text");
+
+      svg.append("g")         // Add the Y Axis
+          .attr("class", "y axis")
+          .call(yAxis)
+          .attr("id", "y-axis");
+
+      // Add the text label for the Y axis
+      svg.append("text")
+          .attr("transform", "rotate(-90)")
+          .attr("y", 0 - margin.left)
+          .attr("x",0 - (height / 2))
+          .attr("dy", "1em")
+          .style("text-anchor", "middle")
+          .text("Proximity")
+          .attr("id", "y-axis-text");
     }
   }).getDeviceData({
     token : TOKEN,
