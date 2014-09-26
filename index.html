@@ -15,23 +15,30 @@
   <meta charset="utf-8">
   <style>
 
-  body {
-    font : 12px Arial;
-  }
+    body {
+      font : 12px Arial;
+    }
 
-  path { 
-    stroke       : steelblue;
-    stroke-width : 2;
-    fill         : none;
-  }
+    path { 
+      stroke       : steelblue;
+      stroke-width : 2;
+      fill         : none;
+    }
 
-  .axis path,
-  .axis line {
-    fill            : none;
-    stroke          : grey;
-    stroke-width    : 1;
-    shape-rendering : crispEdges;
-  }
+    .line1 {
+      stroke : green;
+    }
+    .line2 {
+      stroke : red;
+    }
+
+    .axis path,
+    .axis line {
+      fill            : none;
+      stroke          : grey;
+      stroke-width    : 1;
+      shape-rendering : crispEdges;
+    }
 
   </style>
 
@@ -52,12 +59,24 @@
     console.log("Error creating Hue user");
   });
 
-  user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":3500 },
+  /* setTimeout(function() {
+    user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":8000 });
+    setTimeout(function() {
+      user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":41000 });
+      setTimeout(function() {
+        user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":48000 });
+      }, 750);
+    }, 750);
+  }, 750); */
+
+  /* user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":8000 });/*,
   function() {
     console.log("Successfully set light");
   }, function(error) {
     console.log("Error setting light");
-  });
+  });*/
+  // user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":41000 });
+  // user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":48000 });
 
   // graph dimensions
   var margin = {
@@ -103,8 +122,49 @@
 
   // the actual graphs for left and right proximity sensors
   var path = {
-    left  : svg.append("path").attr("class", "line"),
-    right : svg.append("path").attr("class", "line")
+    left  : svg.append("path").attr("class", "line1"),
+    right : svg.append("path").attr("class", "line2")
+  };
+
+  var updateGraph = function() {
+    // scale data over the entire canvas
+    data = proxData.left.concat(proxData.right);
+    x.domain(d3.extent(data, function(d) { return d.ts; }));
+    y.domain([ 0, d3.max(data, function(d) { return d.prox; }) ]);
+
+    // clear axes and their labels because their scales change with new data
+    $("#x-axis").remove();
+    $("#x-axis-text").remove();
+    $("#y-axis").remove();
+    $("#y-axis-text").remove();
+
+    // reset data on the graph
+    path.left.attr("d", proxFunction(proxData.left));
+    path.right.attr("d", proxFunction(proxData.right));
+
+    // redraw axes and labels
+    svg.append("g")
+      .attr("id", "x-axis")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis);
+    svg.append("text")
+      .attr("id", "x-axis-text")
+      .attr("transform", "translate(" + (width / 2) + " ," + (height + margin.bottom) + ")")
+      .style("text-anchor", "middle")
+      .text("Time");
+    svg.append("g")
+      .attr("id", "y-axis")
+      .attr("class", "y axis")
+      .call(yAxis);
+    svg.append("text")
+      .attr("id", "y-axis-text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 0 - margin.left)
+      .attr("x", 0 - (height / 2))
+      .attr("dy", "1em")
+      .style("text-anchor", "middle")
+      .text("Proximity");
   };
 
   // initialize relayr
@@ -117,56 +177,22 @@
     token        : TOKEN,
     deviceId     : PROXIMITY_LEFT_DEVICE_ID,
     incomingData : function(data){
-      // var timestamp = new Date(data.ts);
-      // console.log("data from proximity sensor 1 at %s", timestamp.toJSON(), data);
-
       // display the latest 20 data points
       if(proxData.left.length >= 20) {
         proxData.left.shift();
       }
       proxData.left.push({ "ts" : new Date(data.ts), "prox" : data.prox });
-
-      // scale data over the entire canvas
-      x.domain(d3.extent(proxData.left, function(d) { return d.ts; }));
-      y.domain([ 0, d3.max(proxData.left, function(d) { return d.prox; }) ]);
-
-      // clear axes and their labels because their scales change with new data
-      $("#x-axis").remove();
-      $("#x-axis-text").remove();
-      $("#y-axis").remove();
-      $("#y-axis-text").remove();
-
-      // reset data on the graph
-      path.left.attr("d", proxFunction(proxData.left));
-
-      // redraw axes and labels
-      svg.append("g")
-        .attr("id", "x-axis")
-        .attr("class", "x axis")
-        .attr("transform", "translate(0," + height + ")")
-        .call(xAxis);
-      svg.append("text")
-        .attr("id", "x-axis-text")
-        .attr("transform", "translate(" + (width / 2) + " ," + (height + margin.bottom) + ")")
-        .style("text-anchor", "middle")
-        .text("Time");
-      svg.append("g")
-        .attr("id", "y-axis")
-        .attr("class", "y axis")
-        .call(yAxis);
-      svg.append("text")
-        .attr("id", "y-axis-text")
-        .attr("transform", "rotate(-90)")
-        .attr("y", 0 - margin.left)
-        .attr("x", 0 - (height / 2))
-        .attr("dy", "1em")
-        .style("text-anchor", "middle")
-        .text("Proximity");
+      updateGraph();
     }
   }).getDeviceData({
     token        : TOKEN,
     deviceId     : PROXIMITY_RIGHT_DEVICE_ID,
     incomingData : function(data){
+      if(proxData.right.length >= 20) {
+        proxData.right.shift();
+      }
+      proxData.right.push({ "ts" : new Date(data.ts), "prox" : data.prox });
+      updateGraph();
     }
   });
 
