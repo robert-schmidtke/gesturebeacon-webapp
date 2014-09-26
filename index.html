@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <script src="assets/private/scripts/configuration.js"></script>
+    <script src="assets/public/scripts/relayr.js"></script>
+  </head>
+
+  <body>
+    TBD
+  </body>
+</html>
+
+<script>
+
+  var relayr = RELAYR.init({
+    appId: APP_ID
+  });
+
+  relayr.devices().getDeviceData({
+    token: "YOUR TOKEN",
+    deviceId:"YOUR DEVICE_ID",
+    incomingData: function(data){
+      console.log("data from device", data)
+    }
+  });
+
+</script>
