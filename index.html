@@ -59,15 +59,16 @@
     console.log("Error creating Hue user");
   });
 
-  /* setTimeout(function() {
-    user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":8000 });
+  // 8000 : orange, 41000 : white, 48000 : blue
+  var lightShow = function(a, b, c) {
+    user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : a });
     setTimeout(function() {
-      user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":41000 });
+      user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : b });
       setTimeout(function() {
-        user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":48000 });
+        user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : c });
       }, 750);
     }, 750);
-  }, 750); */
+  };
 
   /* user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":8000 });/*,
   function() {
@@ -172,6 +173,42 @@
     appId : APP_ID
   });
 
+  var eventData = [];
+  var PROX_THRESHOLD = 100;
+  var SOUND_THRESHOLD = 800;
+
+  var processEvents = function() {
+    if(eventData.length > 1) {
+      var last = eventData.length - 1;
+      var secondLast = last - 1;
+      if(!eventData[secondLast].processed && !eventData[last].processed
+          && eventData[last].ts.getTime() - eventData[secondLast].ts.getTime() <= 2000) {
+        // valid gesture
+        if(eventData[secondLast].sensor === "left" && eventData[last].sensor === "right") {
+          // left to right
+          // lightShow(8000, 41000, 48000);
+          user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : 0 });
+          eventData[secondLast].processed = true;
+          eventData[last].processed = true;
+        } else if(eventData[secondLast].sensor === "right" && eventData[last].sensor === "left") {
+          // right to left
+          // lightShow(48000, 41000, 8000);
+          user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : 40000 });
+          eventData[secondLast].processed = true;
+          eventData[last].processed = true;
+        }
+      }
+      while(eventData.length >= 20) {
+        eventData.shift();
+      }
+    }
+  };
+
+  // process events periodically
+  var processEventIntervalId = setInterval(function() {
+    processEvents();
+  }, 250);
+
   // subscribe to left and right proximity sensors
   relayr.devices().getDeviceData({
     token        : TOKEN,
@@ -181,8 +218,23 @@
       if(proxData.left.length >= 20) {
         proxData.left.shift();
       }
-      proxData.left.push({ "ts" : new Date(data.ts), "prox" : data.prox });
+      var timestamp = new Date(/*data.ts*/);
+      proxData.left.push({ "ts" : timestamp, "prox" : data.prox });
+
       updateGraph();
+
+      // check if the last two data points stepped over the threshold
+      if(proxData.left.length > 1) {
+        var last = proxData.left.length - 1;
+        var secondLast = last - 1;
+        if(proxData.left[secondLast].prox < PROX_THRESHOLD && proxData.left[last].prox >= PROX_THRESHOLD) {
+          eventData.push({
+            "sensor" : "left",
+            "ts" : timestamp,
+            "processed" : false
+          });
+        }
+      }
     }
   }).getDeviceData({
     token        : TOKEN,
@@ -191,8 +243,30 @@
       if(proxData.right.length >= 20) {
         proxData.right.shift();
       }
-      proxData.right.push({ "ts" : new Date(data.ts), "prox" : data.prox });
+      var timestamp = new Date(/*data.ts*/);
+      proxData.right.push({ "ts" : timestamp, "prox" : data.prox });
       updateGraph();
+
+      if(proxData.right.length > 1) {
+        var last = proxData.right.length - 1;
+        var secondLast = last - 1;
+        if(proxData.right[secondLast].prox < PROX_THRESHOLD && proxData.right[last].prox >= PROX_THRESHOLD) {
+          eventData.push({
+            "sensor" : "right",
+            "ts" : timestamp,
+            "processed" : false
+          });
+        }
+      }
+    }
+  }).getDeviceData({
+    token        : TOKEN,
+    deviceId     : SOUND_DEVICE_ID,
+    incomingData : function(data){
+      // blow out the light
+      if(data.snd_level > SOUND_THRESHOLD) {
+        user.setLightState(1, { "on":false });
+      }
     }
   });
 
