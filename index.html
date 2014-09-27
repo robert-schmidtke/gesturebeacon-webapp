@@ -70,15 +70,6 @@
     }, 750);
   };
 
-  /* user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":8000 });/*,
-  function() {
-    console.log("Successfully set light");
-  }, function(error) {
-    console.log("Error setting light");
-  });*/
-  // user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":41000 });
-  // user.setLightState(1, { "on":true, "sat":255, "bri":255,"hue":48000 });
-
   // graph dimensions
   var margin = {
     top    : 30,
@@ -182,18 +173,20 @@
       var last = eventData.length - 1;
       var secondLast = last - 1;
       if(!eventData[secondLast].processed && !eventData[last].processed
-          && eventData[last].ts.getTime() - eventData[secondLast].ts.getTime() <= 2000) {
+          && eventData[last].ts.getTime() - eventData[secondLast].ts.getTime() <= 5000) {
         // valid gesture
         if(eventData[secondLast].sensor === "left" && eventData[last].sensor === "right") {
           // left to right
           // lightShow(8000, 41000, 48000);
           user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : 0 });
+          bridgeCmd("[1, 50]");
           eventData[secondLast].processed = true;
           eventData[last].processed = true;
         } else if(eventData[secondLast].sensor === "right" && eventData[last].sensor === "left") {
           // right to left
           // lightShow(48000, 41000, 8000);
           user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : 40000 });
+          bridgeCmd("[1, 150]");
           eventData[secondLast].processed = true;
           eventData[last].processed = true;
         }
@@ -286,7 +279,7 @@
     incomingData : function(data){
       // blow out the light
       if(data.snd_level > SOUND_THRESHOLD) {
-        user.setLightState(1, { "on":false });
+        user.setLightState(1, { "on" : false });
       }
     }
   });
