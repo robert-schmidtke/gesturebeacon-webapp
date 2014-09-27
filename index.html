@@ -209,6 +209,27 @@
     processEvents();
   }, 250);
 
+  // e.g. bridgeCmd("[1, 180]");
+  var bridgeCmd = function(down_ch_payload) {
+    $.ajax({
+      url  : "https://api.relayr.io/devices/" + BRIDGE_DEVICE_ID + "/cmd/",
+      type : "POST",
+      data : "{ \"down_ch_payload\" : " + down_ch_payload + " }",
+      processData : false,
+      headers : {
+        "Content-Type"  : "application/json",
+        "Authorization" : "Bearer BoBtphidSh9qYeIgBfCZoebTibuvI.LK"
+      },
+      dataType : "json",
+      success  : function (data) {
+        console.info("Successfully posted to bridge");
+      },
+      error : function(error) {
+        console.log("Error posting to bridge");
+      }
+    });
+  };
+
   // subscribe to left and right proximity sensors
   relayr.devices().getDeviceData({
     token        : TOKEN,
