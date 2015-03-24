@@ -5,10 +5,29 @@
   <head>
     <title>GestureBeacon WebApp</title>
 
+    <!-- Needs to define the following variables: -->
+    <!--
+      HUE_IP                    : IP address of the Hue Bridge
+
+      APP_ID                    : Relayr APP ID
+      TOKEN                     : Relayr OAuth Token
+      BRIDGE_DEVICE_ID          : Device ID of the Relayr WunderBar's Bridge (connected to the Arduino with the Grove)
+      PROXIMITY_LEFT_DEVICE_ID  : Device ID of the Relayr WunderBar's Proximity sensor working as the left sensor
+      PROXIMITY_RIGHT_DEVICE_ID : Device ID of another Relayr WunderBar's Proximity sensor working as the right sensor
+      SOUND_DEVICE_ID           : Device ID of the Relayr WunderBar's Sound sensor
+    -->
     <script src="assets/private/scripts/configuration.js"></script>
+
+    <!-- Relayr SDK for WunderBar -->
     <script src="assets/public/scripts/relayr.js"></script>
+
+    <!-- D3 SDK for Graphs -->
     <script src="assets/public/scripts/d3.js" charset="utf-8"></script>
+
+    <!-- jQuery -->
     <script src="assets/public/scripts/jquery-1.11.1.js"></script>
+
+    <!-- SDK for Philips Hue -->
     <script src="assets/public/scripts/jshue.js"></script>
   </head>
 
@@ -43,32 +62,23 @@
   </style>
 
   <body>
-    <!-- append svg here -->
+    <!-- Graph svg is appended here. -->
   </body>
 
 </html>
 
 <script>
 
-  // setup the Hue
+  /* Setup the Hue. */
   var hue = jsHue();
-  var user = hue.bridge("10.1.76.207").user("gesturebeacon");
+  var user = hue.bridge(HUE_IP).user("gesturebeacon");
   user.create("webapp", function() {
     console.log("Successfully created Hue user");
   }, function(error) {
     console.log("Error creating Hue user");
   });
 
-  // 8000 : orange, 41000 : white, 48000 : blue
-  var lightShow = function(a, b, c) {
-    user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : a });
-    setTimeout(function() {
-      user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : b });
-      setTimeout(function() {
-        user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : c });
-      }, 750);
-    }, 750);
-  };
+  /* Setup the Graph for plotting the proximity sensor values. */
 
   // graph dimensions
   var margin = {
@@ -159,38 +169,46 @@
       .text("Proximity");
   };
 
-  // initialize relayr
+  /* Setup relayr. */
+
   var relayr = RELAYR.init({
     appId : APP_ID
   });
 
+  // all events recognized
   var eventData = [];
+
+  // thresholds for sensors
   var PROX_THRESHOLD = 100;
   var SOUND_THRESHOLD = 800;
 
+  // event processing function executed multiple times per second
   var processEvents = function() {
     if(eventData.length > 1) {
       var last = eventData.length - 1;
       var secondLast = last - 1;
+
+      // If the last two events are not processed ...
+      // ... and they are less than 5 seconds apart
       if(!eventData[secondLast].processed && !eventData[last].processed
           && eventData[last].ts.getTime() - eventData[secondLast].ts.getTime() <= 5000) {
-        // valid gesture
+        // ... we have a valid gesture.
         if(eventData[secondLast].sensor === "left" && eventData[last].sensor === "right") {
-          // left to right
-          // lightShow(8000, 41000, 48000);
+          // left to right, set light and turn grove
           user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : 0 });
           bridgeCmd("[1, 50]");
           eventData[secondLast].processed = true;
           eventData[last].processed = true;
         } else if(eventData[secondLast].sensor === "right" && eventData[last].sensor === "left") {
-          // right to left
-          // lightShow(48000, 41000, 8000);
+          // right to left, set light and turn grove
           user.setLightState(1, { "on" : true, "sat" : 255, "bri" : 255, "hue" : 40000 });
           bridgeCmd("[1, 150]");
           eventData[secondLast].processed = true;
           eventData[last].processed = true;
         }
       }
+
+      // keep the last 20 entries
       while(eventData.length >= 20) {
         eventData.shift();
       }
@@ -202,6 +220,7 @@
     processEvents();
   }, 250);
 
+  // posts to the WunderBar Brigdge over the relayr SDK
   // e.g. bridgeCmd("[1, 180]");
   var bridgeCmd = function(down_ch_payload) {
     $.ajax({
@@ -211,7 +230,7 @@
       processData : false,
       headers : {
         "Content-Type"  : "application/json",
-        "Authorization" : "Bearer BoBtphidSh9qYeIgBfCZoebTibuvI.LK"
+        "Authorization" : "Bearer " + TOKEN
       },
       dataType : "json",
       success  : function (data) {
@@ -273,7 +292,9 @@
         }
       }
     }
-  }).getDeviceData({
+  })
+  // subscribe to sound sensor
+  .getDeviceData({
     token        : TOKEN,
     deviceId     : SOUND_DEVICE_ID,
     incomingData : function(data){
